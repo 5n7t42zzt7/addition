@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<title>⚽ Football Maths — Add to Score a Goal!</title>
+<style>
+  :root {
+    --grass-dark: #2e7d32;
+    --grass-light: #43a047;
+    --sky: #4fc3f7;
+    --line: #ffffff;
+    --accent: #ffeb3b;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    font-family: "Comic Sans MS", "Chalkboard SE", "Baloo", system-ui, sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+
+  /* The pitch */
+  #game {
+    position: fixed;
+    inset: 0;
+    background:
+      linear-gradient(to bottom, var(--sky) 0%, var(--sky) 22%, var(--grass-light) 22%, var(--grass-dark) 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow: hidden;
+  }
+
+  /* mowed grass stripes */
+  #game::before {
+    content: "";
+    position: absolute;
+    top: 22%;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: repeating-linear-gradient(
+      to right,
+      rgba(255,255,255,0.04) 0,
+      rgba(255,255,255,0.04) 8vw,
+      transparent 8vw,
+      transparent 16vw
+    );
+    pointer-events: none;
+  }
+
+  /* ---------- Scoreboard ---------- */
+  #scoreboard {
+    position: relative;
+    z-index: 5;
+    margin-top: 1.2vh;
+    background: #1b5e20;
+    color: #fff;
+    border: 4px solid #fff;
+    border-radius: 16px;
+    padding: 6px 18px;
+    font-size: clamp(18px, 4vw, 30px);
+    font-weight: bold;
+    display: flex;
+    gap: 18px;
+    align-items: center;
+    box-shadow: 0 4px 0 rgba(0,0,0,0.25);
+  }
+  #scoreboard .label { font-size: 0.7em; opacity: 0.9; }
+  #stars { letter-spacing: 2px; }
+
+  /* ---------- The goal + question area ---------- */
+  #field {
+    position: relative;
+    z-index: 4;
+    flex: 1;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding-top: 1vh;
+  }
+
+  #goal {
+    position: relative;
+    width: min(70vw, 360px);
+    height: clamp(70px, 14vh, 130px);
+    margin-bottom: 0.5vh;
+    border: 6px solid #fff;
+    border-bottom: none;
+    border-radius: 12px 12px 0 0;
+    background:
+      repeating-linear-gradient(to right, rgba(255,255,255,0.45) 0 2px, transparent 2px 22px),
+      repeating-linear-gradient(to bottom, rgba(255,255,255,0.45) 0 2px, transparent 2px 22px);
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,0.2);
+  }
+  #keeper {
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: clamp(34px, 8vw, 60px);
+    transition: left 0.25s ease;
+  }
+
+  /* The footballs to count */
+  #sum {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.6vw;
+    width: 96%;
+    margin: 0.4vh 0;
+  }
+  .group {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 2px 4px;
+    padding: 8px 10px;
+    background: rgba(255,255,255,0.18);
+    border: 3px dashed rgba(255,255,255,0.7);
+    border-radius: 14px;
+    justify-items: center;
+  }
+  .ball {
+    font-size: clamp(20px, 5.2vw, 40px);
+    line-height: 1;
+    animation: pop 0.3s ease both;
+  }
+  @keyframes pop {
+    from { transform: scale(0); }
+    60%  { transform: scale(1.25); }
+    to   { transform: scale(1); }
+  }
+  .plus, .equals {
+    font-size: clamp(30px, 7vw, 56px);
+    font-weight: bold;
+    color: #fff;
+    text-shadow: 0 2px 0 rgba(0,0,0,0.25);
+    padding: 0 4px;
+  }
+  #question-text {
+    color: #fff;
+    font-size: clamp(26px, 6.5vw, 48px);
+    font-weight: bold;
+    text-shadow: 0 3px 0 rgba(0,0,0,0.3);
+    margin: 0.3vh 0;
+  }
+
+  /* ---------- Answer balls ---------- */
+  #answers {
+    display: flex;
+    gap: clamp(10px, 3vw, 28px);
+    justify-content: center;
+    flex-wrap: wrap;
+    margin: 1vh 0 2vh;
+  }
+  .answer {
+    width: clamp(70px, 20vw, 120px);
+    height: clamp(70px, 20vw, 120px);
+    border-radius: 50%;
+    border: none;
+    background:
+      radial-gradient(circle at 35% 30%, #ffffff 0%, #ffffff 42%, #f0f0f0 60%, #d8d8d8 100%);
+    box-shadow: 0 6px 0 #9e9e9e, 0 8px 12px rgba(0,0,0,0.3);
+    color: #111;
+    font-size: clamp(30px, 8vw, 54px);
+    font-weight: bold;
+    font-family: inherit;
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.08s ease, box-shadow 0.08s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* football pentagon hint */
+  .answer::before {
+    content: "";
+    position: absolute;
+    top: 14%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 26%;
+    height: 22%;
+    background: rgba(0,0,0,0.08);
+    clip-path: polygon(50% 0, 100% 38%, 81% 100%, 19% 100%, 0 38%);
+  }
+  .answer:active { transform: translateY(4px); box-shadow: 0 2px 0 #9e9e9e; }
+  .answer.wrong { animation: shake 0.4s; background: radial-gradient(circle at 35% 30%, #ffcdd2, #ef9a9a); }
+  .answer.correct { animation: grow 0.4s ease; background: radial-gradient(circle at 35% 30%, #c8e6c9, #66bb6a); }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20% { transform: translateX(-8px); }
+    40% { transform: translateX(8px); }
+    60% { transform: translateX(-6px); }
+    80% { transform: translateX(6px); }
+  }
+  @keyframes grow {
+    50% { transform: scale(1.25); }
+  }
+
+  /* flying ball on a goal */
+  #flyball {
+    position: fixed;
+    z-index: 30;
+    font-size: 48px;
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  /* ---------- Overlays (start / celebrate) ---------- */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgba(0,0,0,0.55);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: #fff;
+    padding: 5vw;
+  }
+  .overlay.hidden { display: none; }
+  .overlay h1 {
+    font-size: clamp(34px, 9vw, 72px);
+    margin: 0 0 1vh;
+    text-shadow: 0 4px 0 rgba(0,0,0,0.4);
+  }
+  .overlay p {
+    font-size: clamp(18px, 4.5vw, 30px);
+    margin: 0.4vh 0 3vh;
+    max-width: 600px;
+  }
+  .big-btn {
+    background: var(--accent);
+    color: #1b5e20;
+    border: none;
+    border-radius: 50px;
+    padding: clamp(14px, 3vw, 22px) clamp(34px, 8vw, 60px);
+    font-size: clamp(24px, 6vw, 40px);
+    font-weight: bold;
+    font-family: inherit;
+    cursor: pointer;
+    box-shadow: 0 6px 0 #c8b900;
+    transition: transform 0.08s;
+  }
+  .big-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #c8b900; }
+  .small-row { margin-top: 2.5vh; display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+  .small-btn {
+    background: rgba(255,255,255,0.25);
+    color: #fff;
+    border: 3px solid #fff;
+    border-radius: 40px;
+    padding: 8px 22px;
+    font-size: clamp(16px, 3.6vw, 22px);
+    font-family: inherit;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  .small-btn.selected { background: var(--accent); color: #1b5e20; border-color: var(--accent); }
+
+  /* sound toggle */
+  #sound-toggle {
+    position: fixed;
+    top: 10px;
+    right: 12px;
+    z-index: 6;
+    background: rgba(255,255,255,0.85);
+    border: none;
+    border-radius: 50%;
+    width: 46px;
+    height: 46px;
+    font-size: 24px;
+    cursor: pointer;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+  }
+
+  /* confetti */
+  .confetti {
+    position: fixed;
+    top: -20px;
+    z-index: 35;
+    font-size: 26px;
+    pointer-events: none;
+    animation: fall linear forwards;
+  }
+  @keyframes fall {
+    to { transform: translateY(110vh) rotate(720deg); opacity: 0.9; }
+  }
+</style>
+</head>
+<body>
+  <div id="game">
+    <button id="sound-toggle" title="Sound on/off">🔊</button>
+
+    <div id="scoreboard">
+      <span><span class="label">GOALS</span> <span id="score">0</span></span>
+      <span id="stars"></span>
+      <span><span class="label">LEVEL</span> <span id="level-num">1</span></span>
+    </div>
+
+    <div id="field">
+      <div id="goal"><div id="keeper">🧤</div></div>
+      <div id="question-text"></div>
+      <div id="sum"></div>
+      <div id="answers"></div>
+    </div>
+  </div>
+
+  <div id="flyball">⚽</div>
+
+  <!-- Start screen -->
+  <div id="start" class="overlay">
+    <h1>⚽ Football Maths ⚽</h1>
+    <p>Count the footballs, add them up, and tap the right number to <b>SCORE A GOAL!</b></p>
+    <button class="big-btn" id="play-btn">▶ PLAY</button>
+    <div class="small-row" id="level-picker">
+      <button class="small-btn selected" data-max="10">Easy (up to 10)</button>
+      <button class="small-btn" data-max="15">Medium (up to 15)</button>
+      <button class="small-btn" data-max="20">Big (up to 20)</button>
+    </div>
+  </div>
+
+  <!-- Celebration screen -->
+  <div id="celebrate" class="overlay hidden">
+    <h1 id="celebrate-title">🏆 GREAT JOB! 🏆</h1>
+    <p id="celebrate-text"></p>
+    <button class="big-btn" id="again-btn">⚽ PLAY AGAIN</button>
+  </div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- State ----------
+  var score = 0;
+  var maxSum = 10;        // chosen difficulty ceiling
+  var level = 1;
+  var streak = 0;
+  var soundOn = true;
+  var current = { a: 0, b: 0, answer: 0 };
+  var GOALS_TO_WIN = 10;  // goals before the trophy celebration
+
+  // ---------- DOM ----------
+  var scoreEl = document.getElementById("score");
+  var starsEl = document.getElementById("stars");
+  var levelNumEl = document.getElementById("level-num");
+  var questionTextEl = document.getElementById("question-text");
+  var sumEl = document.getElementById("sum");
+  var answersEl = document.getElementById("answers");
+  var keeperEl = document.getElementById("keeper");
+  var flyballEl = document.getElementById("flyball");
+
+  var startOverlay = document.getElementById("start");
+  var celebrateOverlay = document.getElementById("celebrate");
+  var celebrateText = document.getElementById("celebrate-text");
+  var soundToggle = document.getElementById("sound-toggle");
+
+  // ---------- Sound (Web Audio, no files needed) ----------
+  var audioCtx = null;
+  function ensureAudio() {
+    if (!audioCtx) {
+      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch (e) { audioCtx = null; }
+    }
+    if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+  }
+  function beep(freq, start, dur, type, vol) {
+    if (!soundOn || !audioCtx) return;
+    var o = audioCtx.createOscillator();
+    var g = audioCtx.createGain();
+    o.type = type || "sine";
+    o.frequency.value = freq;
+    var t = audioCtx.currentTime + start;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol || 0.25, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+  }
+  function playCheer() {
+    // rising happy arpeggio + a little "whistle"
+    [523, 659, 784, 1047].forEach(function (f, i) {
+      beep(f, i * 0.09, 0.18, "triangle", 0.3);
+    });
+  }
+  function playGoalHorn() {
+    beep(330, 0, 0.5, "sawtooth", 0.25);
+    beep(440, 0.12, 0.5, "sawtooth", 0.25);
+  }
+  function playOops() {
+    beep(300, 0, 0.15, "square", 0.18);
+    beep(220, 0.12, 0.22, "square", 0.18);
+  }
+  function playTap() { beep(660, 0, 0.07, "sine", 0.15); }
+
+  // ---------- Helpers ----------
+  function rand(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  function setStars() {
+    var s = Math.min(5, Math.floor(score / 2));
+    starsEl.textContent = "⭐".repeat(s);
+  }
+
+  // Build a question whose sum is <= maxSum.
+  function newQuestion() {
+    var total = rand(2, maxSum);
+    var a = rand(1, total - 1);
+    var b = total - a;
+    current.a = a;
+    current.b = b;
+    current.answer = total;
+    render();
+  }
+
+  function ballGroup(n) {
+    var g = document.createElement("div");
+    g.className = "group";
+    for (var i = 0; i < n; i++) {
+      var b = document.createElement("span");
+      b.className = "ball";
+      b.textContent = "⚽";
+      b.style.animationDelay = (i * 0.04) + "s";
+      g.appendChild(b);
+    }
+    return g;
+  }
+
+  function render() {
+    // visual footballs:  [group a]  +  [group b]
+    sumEl.innerHTML = "";
+    sumEl.appendChild(ballGroup(current.a));
+    var plus = document.createElement("span");
+    plus.className = "plus";
+    plus.textContent = "➕";
+    sumEl.appendChild(plus);
+    sumEl.appendChild(ballGroup(current.b));
+
+    questionTextEl.textContent = current.a + " + " + current.b + " = ?";
+
+    // answer choices: correct + two near distractors
+    var options = makeOptions(current.answer);
+    answersEl.innerHTML = "";
+    options.forEach(function (val) {
+      var btn = document.createElement("button");
+      btn.className = "answer";
+      btn.textContent = val;
+      btn.addEventListener("click", function () { onAnswer(btn, val); });
+      answersEl.appendChild(btn);
+    });
+  }
+
+  function makeOptions(correct) {
+    var set = {};
+    set[correct] = true;
+    while (Object.keys(set).length < 3) {
+      var delta = rand(-3, 3);
+      var v = correct + delta;
+      if (v >= 1 && v <= 20 && v !== correct) set[v] = true;
+    }
+    var arr = Object.keys(set).map(Number);
+    // shuffle
+    for (var i = arr.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+    return arr;
+  }
+
+  var locked = false;
+  function onAnswer(btn, val) {
+    if (locked) return;
+    ensureAudio();
+
+    if (val === current.answer) {
+      locked = true;
+      playTap();
+      btn.classList.add("correct");
+      score++;
+      streak++;
+      scoreEl.textContent = score;
+      setStars();
+      scoreGoalAnimation(btn);
+
+      // every few goals, nudge the difficulty up a touch (capped by chosen max)
+      if (streak % 4 === 0 && maxSum < 20) {
+        // already at chosen ceiling? keep it. Otherwise this is handled by chosen maxSum.
+      }
+
+      playGoalHorn();
+      playCheer();
+
+      if (score >= GOALS_TO_WIN) {
+        setTimeout(showCelebration, 1100);
+      } else {
+        setTimeout(function () { locked = false; newQuestion(); }, 1100);
+      }
+    } else {
+      // gentle: shake, say oops, let them try again
+      streak = 0;
+      playOops();
+      btn.classList.add("wrong");
+      btn.disabled = true;
+      setTimeout(function () { btn.classList.remove("wrong"); }, 450);
+    }
+  }
+
+  // Move keeper aside and fly a ball into the net
+  function scoreGoalAnimation(fromBtn) {
+    var dir = Math.random() < 0.5 ? -1 : 1;
+    keeperEl.style.left = (50 + dir * 28) + "%";
+
+    var rect = fromBtn.getBoundingClientRect();
+    var goalRect = document.getElementById("goal").getBoundingClientRect();
+    var startX = rect.left + rect.width / 2 - 24;
+    var startY = rect.top + rect.height / 2 - 24;
+    var endX = goalRect.left + goalRect.width / 2 - 24 - dir * 40;
+    var endY = goalRect.top + goalRect.height / 2 - 24;
+
+    flyballEl.style.transition = "none";
+    flyballEl.style.left = startX + "px";
+    flyballEl.style.top = startY + "px";
+    flyballEl.style.opacity = "1";
+    flyballEl.style.transform = "scale(1)";
+
+    // force reflow then animate
+    void flyballEl.offsetWidth;
+    flyballEl.style.transition = "left 0.6s cubic-bezier(.2,.8,.3,1), top 0.6s cubic-bezier(.3,-0.4,.7,1), transform 0.6s ease";
+    flyballEl.style.left = endX + "px";
+    flyballEl.style.top = endY + "px";
+    flyballEl.style.transform = "scale(0.6) rotate(540deg)";
+
+    setTimeout(function () {
+      flyballEl.style.opacity = "0";
+      keeperEl.style.left = "50%";
+      burstConfetti(12);
+    }, 650);
+  }
+
+  function burstConfetti(n) {
+    var emojis = ["🎉", "⚽", "🥅", "⭐", "🏆", "🎊"];
+    for (var i = 0; i < n; i++) {
+      var c = document.createElement("div");
+      c.className = "confetti";
+      c.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+      c.style.left = Math.random() * 100 + "vw";
+      c.style.animationDuration = (1.5 + Math.random() * 1.5) + "s";
+      c.style.fontSize = (18 + Math.random() * 22) + "px";
+      document.body.appendChild(c);
+      (function (el) { setTimeout(function () { el.remove(); }, 3000); })(c);
+    }
+  }
+
+  // ---------- Screens ----------
+  function showCelebration() {
+    locked = true;
+    celebrateText.textContent = "You scored " + score + " goals! You are a maths champion! ⚽🏆";
+    celebrateOverlay.classList.remove("hidden");
+    burstConfetti(40);
+    playCheer();
+    setTimeout(function () { playGoalHorn(); }, 300);
+  }
+
+  function startGame() {
+    ensureAudio();
+    score = 0;
+    streak = 0;
+    locked = false;
+    scoreEl.textContent = "0";
+    setStars();
+    levelNumEl.textContent = (maxSum === 10 ? 1 : maxSum === 15 ? 2 : 3);
+    startOverlay.classList.add("hidden");
+    celebrateOverlay.classList.add("hidden");
+    newQuestion();
+  }
+
+  // ---------- Wire up controls ----------
+  document.getElementById("play-btn").addEventListener("click", startGame);
+  document.getElementById("again-btn").addEventListener("click", function () {
+    celebrateOverlay.classList.add("hidden");
+    startGame();
+  });
+
+  // difficulty picker
+  var pickerBtns = document.querySelectorAll("#level-picker .small-btn");
+  pickerBtns.forEach(function (b) {
+    b.addEventListener("click", function () {
+      pickerBtns.forEach(function (x) { x.classList.remove("selected"); });
+      b.classList.add("selected");
+      maxSum = parseInt(b.getAttribute("data-max"), 10);
+    });
+  });
+
+  soundToggle.addEventListener("click", function () {
+    soundOn = !soundOn;
+    soundToggle.textContent = soundOn ? "🔊" : "🔇";
+    if (soundOn) { ensureAudio(); playTap(); }
+  });
+
+  // keep audio alive on first touch (mobile)
+  document.body.addEventListener("touchstart", ensureAudio, { once: true });
+})();
+</script>
+</body>
+</html>
